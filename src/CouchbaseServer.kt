@@ -9,34 +9,19 @@ class CouchbaseServer(manifestFile: File) {
     private var relativeManifestFilename: String
     private val environment = Environment()
     private val released : Boolean
-    private val executor = Executor()
+    private val repoRepository : RepoRepository
 
     fun exists(): Boolean {
-        return directory.exists() && File(directory, ".repo").exists()
+        return repoRepository.exists()
     }
 
     @Throws(Exception::class)
     fun initialize() {
         banner("Running repo init for $name", "=")
-        if (!directory.exists() && !directory.mkdirs()) {
-            throw Exception("Failed to create directory $name")
-        }
-        executor.execute(
-            listOf(
-                "repo",
-                "init",
-                "-u",
-                environment.manifest.absolutePath,
-                "-g",
-                "default,-thirdparty",
-                "--reference=" + environment.repo_cache.absolutePath,
-                "-b",
-                "master",
-                "-m",
-                relativeManifestFilename,
-                "--no-repo-verify",
-                "--quiet"
-            ), directory
+        repoRepository.init(
+            environment.manifest,
+            environment.repo_cache,
+            relativeManifestFilename
         )
     }
 
@@ -67,6 +52,8 @@ class CouchbaseServer(manifestFile: File) {
             manifestFile.name.substring(0, manifestFile.name.indexOf(".xml"))
         }
         directory = File(environment.source, name)
+        directory.mkdirs()
+        repoRepository = RepoRepository(directory)
     }
 
     fun update() {
@@ -80,10 +67,7 @@ class CouchbaseServer(manifestFile: File) {
 
     @Throws(Exception::class)
     private fun syncWithUpstreamRepository() {
-        executor.execute(listOf("git", "reset", "--hard", "origin/master"), File(File(directory, ".repo"), "manifests"))
-        executor.execute(listOf("git", "remote", "update"), File(File(directory, ".repo"), "manifests"))
-        executor.execute(listOf("git", "reset", "--hard", "origin/master"), File(File(directory, ".repo"), "manifests"))
-        executor.execute(listOf("repo", "sync", "--jobs=10", "--quiet", "--force-sync"), directory)
+        repoRepository.syncWithUpstreamRepository()
         if (released) {
             if (!File(directory, ".locked").createNewFile()) {
                 System.err.println("Failed to create lock file for $name")

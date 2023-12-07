@@ -9,25 +9,17 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 class ManifestGitRepository {
-    private val executor = Executor()
     private val environment = Environment()
+    private val repository = GitRepository(environment.manifest)
 
     fun exists(): Boolean {
-        return environment.manifest.exists() && File(environment.manifest, ".git").exists()
+        return repository.exists()
     }
 
     @Throws(Exception::class)
     fun initialize() {
         banner("Initialize manifest repository", "=")
-        val dir = environment.manifest.getParentFile()
-        if (!dir.exists() && !dir.mkdirs()) {
-            throw Exception("Failed to create directory")
-        }
-        val commands = ArrayList<String>()
-        commands.add("git")
-        commands.add("clone")
-        commands.add("ssh://git@github.com/couchbase/manifest")
-        executor.execute(commands, dir)
+        repository.clone("ssh://git@github.com/couchbase/manifest")
     }
 
     fun update() {
@@ -63,18 +55,12 @@ class ManifestGitRepository {
 
     @Throws(Exception::class)
     private fun syncWithUpstreamRepository() {
-        executor.execute(listOf("git", "reset", "--hard", "origin/master"), environment.manifest)
-        executor.execute(listOf("git", "remote", "update"), environment.manifest)
-        executor.execute(listOf("git", "reset", "--hard", "origin/master"), environment.manifest)
+        repository.resetToUpstream()
     }
 
     @Throws(Exception::class)
     private fun commitChanges() {
-        executor.execute(listOf("git", "add", "."), environment.manifest)
-        executor.execute(
-            listOf("git", "commit", "--allow-empty", "--no-verify", "--no-gpg-sign", "-m", "Rewrite manifest files"),
-            environment.manifest
-        )
+        repository.commitChanges("Rewrite manifest files")
     }
 
     companion object {

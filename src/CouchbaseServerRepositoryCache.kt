@@ -1,37 +1,17 @@
 import java.io.File
 
 class CouchbaseServerRepositoryCache {
-    private val executor = Executor()
     private val environment = Environment()
+    private val repoRepository = RepoRepository(environment.repo_cache)
 
     fun exists(): Boolean {
-        return environment.repo_cache.exists() && File(environment.repo_cache, ".repo").exists()
+        return repoRepository.exists()
     }
 
     @Throws(Exception::class)
     fun initialize() {
         banner("Initialize repo cache", "=")
-        if (!environment.repo_cache.mkdirs()) {
-            throw Exception("Failed to create directory")
-        }
-
-        executor.execute(
-            listOf(
-                "repo",
-                "init",
-                "-u",
-                environment.manifest.absolutePath,
-                "-g",
-                "default,-thirdparty",
-                "--mirror",
-                "-b",
-                "master",
-                "-m",
-                "branch-master.xml",
-                "--no-repo-verify",
-                "--quiet"
-            ), environment.repo_cache
-        )
+        repoRepository.initMirror(environment.manifest, "branch-master.xml")
     }
 
     fun update() {
@@ -45,13 +25,6 @@ class CouchbaseServerRepositoryCache {
 
     @Throws(Exception::class)
     private fun syncWithUpstreamRepository() {
-        executor.execute(listOf("git", "remote", "update"), File(File(environment.repo_cache, ".repo"), "manifests"))
-        executor.execute(
-            listOf("git", "reset", "--hard", "origin/master"),
-            File(File(environment.repo_cache, ".repo"), "manifests")
-        )
-        executor.execute(
-            listOf("repo", "sync", "--jobs=32", "--quiet"), environment.repo_cache
-        )
+        repoRepository.syncWithUpstreamRepository()
     }
 }
